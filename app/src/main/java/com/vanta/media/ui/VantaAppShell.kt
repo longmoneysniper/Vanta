@@ -4,6 +4,9 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -13,14 +16,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import coil3.compose.AsyncImage
+import com.vanta.media.data.local.entity.UnifiedMediaEntity
 import com.vanta.media.navigation.VantaRoute
 import com.vanta.media.ui.components.AnamorphicEclipseLogo
+import com.vanta.media.ui.home.HomeViewModel
 import com.vanta.media.ui.theme.*
 
 @Composable
@@ -112,76 +122,96 @@ fun VantaAppShell() {
                 startDestination = VantaRoute.Home,
                 modifier = Modifier.fillMaxSize()
             ) {
-                composable<VantaRoute.Home> { Phase1HomeScreen() }
-                composable<VantaRoute.Library> { Phase1PlaceholderScreen("Unified Library") }
-                composable<VantaRoute.Sources> { Phase1PlaceholderScreen("Jellyfin • Stremio • Kodi • Debrid • SMB") }
-                composable<VantaRoute.Settings> { Phase1PlaceholderScreen("Vanta Settings & PunchPlay.tv") }
+                composable<VantaRoute.Home> { Phase2HomeScreen() }
+                composable<VantaRoute.Library> { Phase2PlaceholderScreen("Unified Library (Phase 4 Sources)") }
+                composable<VantaRoute.Sources> { Phase2PlaceholderScreen("Jellyfin • Stremio • Kodi • Debrid • SMB") }
+                composable<VantaRoute.Settings> { Phase2PlaceholderScreen("Vanta Settings & PunchPlay.tv") }
             }
         }
     }
 }
 
 @Composable
-private fun Phase1HomeScreen() {
-    Column(
+private fun Phase2HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var tmdbInput by remember { mutableStateOf("") }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AnamorphicEclipseLogo(size = 38.dp)
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = "VANTA",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "Cinema, Unified.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = AmberCorona
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnamorphicEclipseLogo(size = 34.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("VANTA", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("Cinema, Unified.", style = MaterialTheme.typography.labelMedium, color = AmberCorona)
+                    }
+                }
+                FilterChip(
+                    selected = state.kidsModeEnabled,
+                    onClick = { viewModel.toggleKidsMode(!state.kidsModeEnabled) },
+                    label = { Text(if (state.kidsModeEnabled) "Kids Mode ON" else "Kids Mode") },
+                    leadingIcon = { Icon(Icons.Rounded.ChildCare, contentDescription = null) }
                 )
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(FrostedGlassFill, CrimsonFlare.copy(alpha = 0.14f))
-                    )
-                )
-                .border(1.dp, FrostedBorder, RoundedCornerShape(24.dp))
-                .padding(24.dp),
-            contentAlignment = Alignment.BottomStart
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("PHASE 1 SHELL READY", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(FrostedGlassFill, CrimsonFlare.copy(alpha = 0.14f))))
+                    .border(1.dp, FrostedBorder, RoundedCornerShape(22.dp))
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("PHASE 2 • METADATA RESOLVER & ROOM VAULT", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
                 Text(
-                    "OLED Obsidian & Frosted Glass Architecture",
+                    if (state.hasTmdbKey) "TMDB API Key Encrypted in Android Keystore"
+                    else "Enter TMDB API Key to enrich posters, stills & IMDb IDs",
                     color = TextPrimary,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.titleMedium
                 )
-                Text(
-                    "arm64-v8a locked • Edge-to-Edge • Touch & Android TV D-Pad Ready",
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = tmdbInput,
+                        onValueChange = { tmdbInput = it },
+                        placeholder = { Text("TMDB v3 API Key") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            if (tmdbInput.isNotBlank()) {
+                                viewModel.saveTmdbApiKey(tmdbInput)
+                                tmdbInput = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)
+                    ) {
+                        Text("Save")
+                    }
+                }
+                OutlinedButton(onClick = { viewModel.ingestSampleItems() }) {
+                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Test MetadataResolver & Series Deduplication")
+                }
             }
         }
-    }
-}
 
-@Composable
-private fun Phase1PlaceholderScreen(title: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = title, color = TextSecondary, style = MaterialTheme.typography.titleMedium)
-    }
-}
+        if (state.continueWatching.isNotEmpty()) {
+            item {
+                Text("Continue Watching (Deduplicated by Series)", color = TextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))

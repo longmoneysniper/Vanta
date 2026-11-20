@@ -63,14 +63,13 @@ fun VantaAppShell() {
             composable<VantaRoute.Player> { entry ->
                 val args = entry.toRoute<VantaRoute.Player>()
                 VantaPlayerScreen(canonicalKey = args.canonicalKey, sourceLinkId = args.sourceLinkId, onBack = { nav.popBackStack() })
-
             }
         }
 
         if (!isPlayer) {
             Row(
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)
-                    .clip(CircleShape).background(Color(0xE612131A)).border(1.dp, Color(0x2EFFFFFF), CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
+                    .clip(CircleShape).background(Color(0x9912131A)).border(1.dp, Color(0x2EFFFFFF), CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -95,14 +94,13 @@ private fun CinemaHomeScreen(vm: HomeViewModel = hiltViewModel(), onLaunchPlayer
     val state by vm.uiState.collectAsStateWithLifecycle()
     var selected by remember { mutableStateOf<UnifiedMediaEntity?>(null) }
     val rows = remember(state.libraryItems) {
-    state.libraryItems
-        .filter { it.catalogId != "search" }
-        .sortedBy { it.catalogOrder }
-        .groupBy { it.catalogId ?: it.catalogRow ?: "Trending" }
-        .values
-        .map { list -> (list.first().catalogRow ?: "Trending") to list }
-}
- } }
+        state.libraryItems
+            .filter { it.catalogId != "search" }
+            .sortedBy { it.catalogOrder }
+            .groupBy { it.catalogId ?: it.catalogRow ?: "Trending" }
+            .values
+            .map { list -> (list.first().catalogRow ?: "Trending") to list }
+    }
 
     LazyColumn(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding(), contentPadding = PaddingValues(top = 12.dp, bottom = 104.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (state.continueWatching.isNotEmpty()) {
@@ -122,13 +120,13 @@ private fun CinemaHomeScreen(vm: HomeViewModel = hiltViewModel(), onLaunchPlayer
                 }
             }
         }
-        rows.forEach { (title, list) ->
+        rows.forEachIndexed { rowIdx, (title, list) ->
             val wide = title.contains("Upcoming", true) || title.contains("Next Up", true)
-            item(key = title) {
+            item(key = "$rowIdx-$title") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0x9912131A)).border(1.dp, FrostedBorder, CircleShape).clickable { vm.refreshAllCatalogs() }, contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF181A22)).border(1.dp, FrostedBorder, CircleShape).clickable { vm.refreshAllCatalogs() }, contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                         }
                     }
@@ -166,7 +164,7 @@ private fun WideCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
 @Composable
 private fun PosterCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
     Box(Modifier.width(152.dp).height(228.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF12141C)).border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp)).clickable(onClick = onClick)) {
-        AsyncImage(model = m.posterUrl, contentDescription = m.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+ifier = Modifier.fillMaxSize())
     }
 }
 

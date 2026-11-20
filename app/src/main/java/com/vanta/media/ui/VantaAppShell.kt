@@ -168,8 +168,8 @@ private fun PosterCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
     }
 }
 
-    }
-}
+    
+
 
 @Composable
 private fun CinemaLibraryScreen(isSearch: Boolean, vm: HomeViewModel = hiltViewModel(), onLaunchPlayer: (String, String) -> Unit) {

@@ -85,7 +85,8 @@ fun VantaAppShell() {
                 composable<VantaRoute.Settings> { SettingsScreen() }
                 composable<VantaRoute.Player> { entry ->
                     val args = entry.toRoute<VantaRoute.Player>()
-                    VantaPlayerScreen(args.canonicalKey, args.sourceLinkId), onBack = { nav.popBackStack() }
+                    VantaPlayerScreen(canonicalKey = args.canonicalKey, sourceLinkId = args.sourceLinkId, onBack = { nav.popBackStack() })
+
                 }
             }
         }

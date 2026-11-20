@@ -1,24 +1,11 @@
 package com.vanta.media.domain.metadata
 
 import com.vanta.media.data.local.dao.VantaMediaDao
-import com.vanta.media.data.local.entity.MediaType
-import com.vanta.media.data.local.entity.TmdbLookupCacheEntity
-import com.vanta.media.data.local.entity.UnifiedMediaEntity
+import com.vanta.media.data.local.entity.*
 import com.vanta.media.data.security.SecureVault
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.floatOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.*
+import kotlinx.serialization.json.*
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -41,173 +28,109 @@ class MetadataResolver @Inject constructor(
     private val secureVault: SecureVault,
     private val okHttpClient: OkHttpClient
 ) {
-    private val tmdbSemaphore = Semaphore(4)
-    private val keyMutexes = ConcurrentHashMap<String, Mutex>()
+    private val sem = Semaphore(4)
+    private val mutexes = ConcurrentHashMap<String, Mutex>()
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun mutexFor(key: String): Mutex = keyMutexes.computeIfAbsent(key) { Mutex() }
-
     suspend fun resolveAndPersist(hint: RawMediaHint): UnifiedMediaEntity = withContext(Dispatchers.IO) {
-        val parsed = FilenameParser.parse(hint.rawTitleOrFilename)
-        val season = hint.season ?: parsed.season
-        val episode = hint.episode ?: parsed.episode
-        val isTv = season != null && episode != null
-
-        val lookupKey = buildString {
-            if (!hint.knownImdbId.isNullOrBlank()) append("imdb:${hint.knownImdbId}")
-            else if (hint.knownTmdbId != null) append("tmdb:${hint.knownTmdbId}:${if (isTv) "tv" else "movie"}")
-            else append("q:${parsed.cleanTitle.lowercase()}:${parsed.year ?: ""}:${if (isTv) "tv" else "movie"}")
+        val p = FilenameParser.parse(hint.rawTitleOrFilename)
+        val s = hint.season ?: p.season
+        val e = hint.episode ?: p.episode
+        val isTv = s != null && e != null
+        val key = when {
+            !hint.knownImdbId.isNullOrBlank() -> "imdb:${hint.knownImdbId}"
+            hint.knownTmdbId != null -> "tmdb:${hint.knownTmdbId}:${if (isTv) "tv" else "movie"}"
+            else -> "q:${p.cleanTitle.lowercase()}:${p.year ?: ""}:${if (isTv) "tv" else "movie"}"
         }
-
-        mutexFor(lookupKey).withLock {
-            val cached = dao.getTmdbCache(lookupKey)
-            if (cached != null && !cached.isExpired()) {
-                if (cached.isNegativeMatch) {
-                    return@withLock buildFallbackEntity(parsed, season, episode, hint.fallbackPosterUrl)
-                }
+        mutexes.computeIfAbsent(key) { Mutex() }.withLock {
+            val cached = dao.getTmdbCache(key)
+            if (cached != null && !cached.isExpired() && cached.isNegativeMatch) {
+                return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
             }
-
             val apiKey = secureVault.getSecret("tmdb_api_key").orEmpty()
-            if (apiKey.isBlank()) {
-                return@withLock buildFallbackEntity(parsed, season, episode, hint.fallbackPosterUrl)
-            }
+            if (apiKey.isBlank()) return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
 
             val tmdbId = hint.knownTmdbId
-                ?: hint.knownImdbId?.let { bridgeImdbToTmdb(it, isTv, apiKey) }
-                ?: searchTmdbId(parsed.cleanTitle, parsed.year, isTv, apiKey)
+                ?: hint.knownImdbId?.let { bridgeImdb(it, isTv, apiKey) }
+                ?: searchTmdb(p.cleanTitle, p.year, isTv, apiKey)
 
             if (tmdbId == null) {
-                dao.upsertTmdbCache(
-                    TmdbLookupCacheEntity(
-                        lookupKey = lookupKey,
-                        tmdbId = null,
-                        mediaType = if (isTv) MediaType.EPISODE else MediaType.MOVIE,
-                        resolvedJson = null,
-                        cachedAtMs = System.currentTimeMillis(),
-                        isNegativeMatch = true
-                    )
-                )
-                return@withLock buildFallbackEntity(parsed, season, episode, hint.fallbackPosterUrl)
+                dao.upsertTmdbCache(TmdbLookupCacheEntity(key, null, if (isTv) MediaType.EPISODE else MediaType.MOVIE, null, System.currentTimeMillis(), true))
+                return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
             }
-
-            val resolved = if (isTv && season != null && episode != null) {
-                fetchTvEpisodeDetails(tmdbId, season, episode, apiKey)
-            } else {
-                fetchMovieDetails(tmdbId, apiKey)
-            }
-
-            val entity = resolved ?: buildFallbackEntity(parsed, season, episode, hint.fallbackPosterUrl)
+            val entity = (if (isTv && s != null && e != null) fetchEp(tmdbId, s, e, apiKey) else fetchMovie(tmdbId, apiKey))
+                ?: fallback(p, s, e, hint.fallbackPosterUrl)
             dao.upsertMedia(entity)
-            dao.upsertTmdbCache(
-                TmdbLookupCacheEntity(
-                    lookupKey = lookupKey,
-                    tmdbId = tmdbId,
-                    mediaType = entity.mediaType,
-                    resolvedJson = null,
-                    cachedAtMs = System.currentTimeMillis(),
-                    isNegativeMatch = false
-                )
-            )
+            dao.upsertTmdbCache(TmdbLookupCacheEntity(key, tmdbId, entity.mediaType, null, System.currentTimeMillis(), false))
             entity
         }
     }
 
-    private suspend fun bridgeImdbToTmdb(imdbId: String, isTv: Boolean, apiKey: String): Int? {
-        val url = "https://themoviedb.org".toHttpUrl().newBuilder()
-            .addQueryParameter("api_key", apiKey)
-            .addQueryParameter("external_source", "imdb_id")
-            .build()
-        val body = executeRateLimitedGet(url.toString()) ?: return null
-        val root = json.parseToJsonElement(body).jsonObject
-        val arrayKey = if (isTv) "tv_results" else "movie_results"
-        return root[arrayKey]?.jsonArray?.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.intOrNull
+    private suspend fun bridgeImdb(imdb: String, isTv: Boolean, key: String): Int? {
+        val url = "https://themoviedb.org".toHttpUrl().newBuilder().addQueryParameter("api_key", key).addQueryParameter("external_source", "imdb_id").build()
+        val body = get(url.toString()) ?: return null
+        return json.parseToJsonElement(body).jsonObject[if (isTv) "tv_results" else "movie_results"]?.jsonArray?.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.intOrNull
     }
 
-    private suspend fun searchTmdbId(title: String, year: Int?, isTv: Boolean, apiKey: String): Int? {
-        val endpoint = if (isTv) "search/tv" else "search/movie"
-        val url = "https://themoviedb.org".toHttpUrl().newBuilder()
-            .addQueryParameter("api_key", apiKey)
-            .addQueryParameter("query", title)
-            .apply {
-                if (year != null) addQueryParameter(if (isTv) "first_air_date_year" else "year", year.toString())
+    private suspend fun searchTmdb(q: String, year: Int?, isTv: Boolean, key: String): Int? {
+        val url = "https://themoviedb.org{if (isTv) "search/tv" else "search/movie"}".toHttpUrl().newBuilder()
+            .addQueryParameter("api_key", key).addQueryParameter("query", q)
+            .apply { if (year != null) addQueryParameter(if (isTv) "first_air_date_year" else "year", year.toString()) }.build()
+        val body = get(url.toString()) ?: return null
+        return json.parseToJsonElement(body).jsonObject["results"]?.jsonArray?.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.intOrNull
+    }
+
+    private suspend fun fetchMovie(id: Int, key: String): UnifiedMediaEntity? {
+        val body = get("https://themoviedb.org") ?: return null
+        val o = json.parseToJsonElement(body).jsonObject
+        val title = o["title"]?.jsonPrimitive?.content ?: return null
+        return UnifiedMediaEntity(
+            canonicalKey = "movie:$id", tmdbId = id, imdbId = o["imdb_id"]?.jsonPrimitive?.content,
+            mediaType = MediaType.MOVIE, title = title, overview = o["overview"]?.jsonPrimitive?.content.orEmpty(),
+            posterUrl = o["poster_path"]?.jsonPrimitive?.content?.let { "https://tmdb.org" },
+            backdropUrl = o["backdrop_path"]?.jsonPrimitive?.content?.let { "https://tmdb.org" },
+            releaseYear = o["release_date"]?.jsonPrimitive?.content?.take(4)?.toIntOrNull(),
+            rating = o["vote_average"]?.jsonPrimitive?.floatOrNull, isFamilyFriendly = !(o["adult"]?.jsonPrimitive?.booleanOrNull ?: false)
+        )
+    }
+
+    private suspend fun fetchEp(id: Int, s: Int, e: Int, key: String): UnifiedMediaEntity? {
+        val showBody = get("https://themoviedb.org") ?: return null
+        val epBody = get("https://themoviedb.org") ?: return null
+        val show = json.parseToJsonElement(showBody).jsonObject
+        val ep = json.parseToJsonElement(epBody).jsonObject
+        val series = show["name"]?.jsonPrimitive?.content ?: return null
+        return UnifiedMediaEntity(
+            canonicalKey = "tv:$id:s${s.toString().padStart(2, '0')}:e${e.toString().padStart(2, '0')}",
+            tmdbId = id, imdbId = null, mediaType = MediaType.EPISODE, title = "$series • S${s}E${e}",
+            seriesTitle = series, seriesGroupKey = "tv:$id", seasonNumber = s, episodeNumber = e,
+            episodeTitle = ep["name"]?.jsonPrimitive?.content ?: "Episode $e", overview = ep["overview"]?.jsonPrimitive?.content.orEmpty(),
+            posterUrl = show["poster_path"]?.jsonPrimitive?.content?.let { "https://tmdb.org" },
+            backdropUrl = show["backdrop_path"]?.jsonPrimitive?.content?.let { "https://tmdb.org" },
+            episodeStillUrl = ep["still_path"]?.jsonPrimitive?.content?.let { "https://tmdb.org" },
+            rating = ep["vote_average"]?.jsonPrimitive?.floatOrNull, isFamilyFriendly = !(show["adult"]?.jsonPrimitive?.booleanOrNull ?: false)
+        )
+    }
+
+    private suspend fun get(url: String): String? = sem.withPermit {
+        repeat(3) { i ->
+            okHttpClient.newCall(Request.Builder().url(url).build()).execute().use { r ->
+                if (r.code == 429) delay((r.header("Retry-After")?.toLongOrNull() ?: (i + 1L)) * 1000L)
+                else if (r.isSuccessful) return@withPermit r.body?.string() else return@withPermit null
             }
-            .build()
-        val body = executeRateLimitedGet(url.toString()) ?: return null
-        val root = json.parseToJsonElement(body).jsonObject
-        return root["results"]?.jsonArray?.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.intOrNull
+        }
+        null
     }
 
-    private suspend fun fetchMovieDetails(tmdbId: Int, apiKey: String): UnifiedMediaEntity? {
-        val url = "https://themoviedb.org".toHttpUrl().newBuilder()
-            .addQueryParameter("api_key", apiKey)
-            .build()
-        val body = executeRateLimitedGet(url.toString()) ?: return null
-        val obj = json.parseToJsonElement(body).jsonObject
-        val title = obj["title"]?.jsonPrimitive?.content ?: return null
-        val posterPath = obj["poster_path"]?.jsonPrimitive?.content
-        val backdropPath = obj["backdrop_path"]?.jsonPrimitive?.content
-        val adult = obj["adult"]?.jsonPrimitive?.booleanOrNull ?: false
-
+    private fun fallback(p: ParsedFilename, s: Int?, e: Int?, poster: String?): UnifiedMediaEntity {
+        val slug = p.cleanTitle.lowercase().replace(Regex("[^a-z0-9]+"), "-")
+        val isTv = s != null && e != null
         return UnifiedMediaEntity(
-            canonicalKey = "movie:$tmdbId",
-            tmdbId = tmdbId,
-            imdbId = obj["imdb_id"]?.jsonPrimitive?.content,
-            mediaType = MediaType.MOVIE,
-            title = title,
-            overview = obj["overview"]?.jsonPrimitive?.content.orEmpty(),
-            posterUrl = posterPath?.let { "https://tmdb.org" },
-            backdropUrl = backdropPath?.let { "https://tmdb.org" },
-            releaseYear = obj["release_date"]?.jsonPrimitive?.content?.take(4)?.toIntOrNull(),
-            rating = obj["vote_average"]?.jsonPrimitive?.floatOrNull,
-            isFamilyFriendly = !adult
+            canonicalKey = if (isTv) "unmatched:tv:$slug:s$s:e$e" else "unmatched:movie:$slug",
+            tmdbId = null, imdbId = null, mediaType = if (isTv) MediaType.EPISODE else MediaType.MOVIE,
+            title = if (isTv) "${p.cleanTitle} • S${s}E${e}" else p.cleanTitle,
+            seriesTitle = if (isTv) p.cleanTitle else null, seriesGroupKey = if (isTv) "unmatched:tv:$slug" else null,
+            seasonNumber = s, episodeNumber = e, posterUrl = poster, releaseYear = p.year
         )
     }
-
-    private suspend fun fetchTvEpisodeDetails(tmdbId: Int, season: Int, episode: Int, apiKey: String): UnifiedMediaEntity? {
-        val showUrl = "https://themoviedb.org".toHttpUrl().newBuilder()
-            .addQueryParameter("api_key", apiKey)
-            .build()
-        val epUrl = "https://themoviedb.org/season/$season/episode/$episode".toHttpUrl().newBuilder()
-            .addQueryParameter("api_key", apiKey)
-            .build()
-
-        val showBody = executeRateLimitedGet(showUrl.toString()) ?: return null
-        val epBody = executeRateLimitedGet(epUrl.toString()) ?: return null
-
-        val showObj = json.parseToJsonElement(showBody).jsonObject
-        val epObj = json.parseToJsonElement(epBody).jsonObject
-
-        val seriesTitle = showObj["name"]?.jsonPrimitive?.content ?: return null
-        val epTitle = epObj["name"]?.jsonPrimitive?.content ?: "Episode $episode"
-        val posterPath = showObj["poster_path"]?.jsonPrimitive?.content
-        val backdropPath = showObj["backdrop_path"]?.jsonPrimitive?.content
-        val stillPath = epObj["still_path"]?.jsonPrimitive?.content
-        val adult = showObj["adult"]?.jsonPrimitive?.booleanOrNull ?: false
-
-        return UnifiedMediaEntity(
-            canonicalKey = "tv:$tmdbId:s${season.toString().padStart(2, '0')}:e${episode.toString().padStart(2, '0')}",
-            tmdbId = tmdbId,
-            imdbId = null,
-            mediaType = MediaType.EPISODE,
-            title = "$seriesTitle • S${season}E${episode}",
-            seriesTitle = seriesTitle,
-            seriesGroupKey = "tv:$tmdbId",
-            seasonNumber = season,
-            episodeNumber = episode,
-            episodeTitle = epTitle,
-            overview = epObj["overview"]?.jsonPrimitive?.content.orEmpty(),
-            posterUrl = posterPath?.let { "https://tmdb.org" },
-            backdropUrl = backdropPath?.let { "https://tmdb.org" },
-            episodeStillUrl = stillPath?.let { "https://tmdb.org" },
-            rating = epObj["vote_average"]?.jsonPrimitive?.floatOrNull,
-            isFamilyFriendly = !adult
-        )
-    }
-
-    private suspend fun executeRateLimitedGet(url: String): String? = tmdbSemaphore.withPermit {
-        repeat(3) { attempt ->
-            val req = Request.Builder().url(url).build()
-            okHttpClient.newCall(req).execute().use { resp ->
-                if (resp.code == 429) {
-                    val retrySec = resp.header("Retry-After")?.toLongOrNull() ?: (attempt + 1L)
-                    delay(retrySec * 1000L)
+}

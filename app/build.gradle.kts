@@ -16,8 +16,8 @@ android {
         applicationId = "com.vanta.media"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-phase1"
+        versionCode = 2
+        versionName = "0.2.0-phase2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -80,8 +80,17 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    // Phase 2: Room, Encrypted Storage & Serialization
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+    implementation(libs.datastore.preferences)
+    implementation(libs.security.crypto)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Networking & Images
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

@@ -15,7 +15,7 @@ enum class MediaSourceType { JELLYFIN, KODI, STREMIO, NUVIO, DEBRID, LOCAL_SMB }
         Index(value = ["tmdbId"]),
         Index(value = ["isFamilyFriendly"]),
         Index(value = ["lastWatchedAt"]),
-        Index(value = ["catalogRow"])
+        Index(value = ["catalogId"])
     ]
 )
 data class UnifiedMediaEntity(
@@ -34,7 +34,9 @@ data class UnifiedMediaEntity(
     val backdropUrl: String? = null,
     val episodeStillUrl: String? = null,
     val logoUrl: String? = null,
+    val catalogId: String? = null,
     val catalogRow: String? = null,
+    val catalogOrder: Int = 999,
     val rankBadge: String? = null,
     val certification: String? = null,
     val genres: String? = null,

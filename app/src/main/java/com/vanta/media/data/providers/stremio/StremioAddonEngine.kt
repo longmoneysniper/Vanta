@@ -4,17 +4,12 @@ import com.vanta.media.data.local.dao.VantaMediaDao
 import com.vanta.media.data.local.entity.MediaSourceLinkEntity
 import com.vanta.media.data.local.entity.MediaSourceType
 import com.vanta.media.data.security.SecureVault
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
+import com.vanta.media.domain.metadata.MetadataResolver
+import com.vanta.media.domain.metadata.RawMediaHint
+import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.UUID
@@ -40,7 +35,8 @@ data class ResolvedAddonStream(
 class StremioAddonEngine @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val secureVault: SecureVault,
-    private val dao: VantaMediaDao
+    private val dao: VantaMediaDao,
+    private val metadataResolver: MetadataResolver
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -51,25 +47,50 @@ class StremioAddonEngine @Inject constructor(
 
     suspend fun installAddonFromManifest(manifestUrl: String): Result<InstalledAddon> = withContext(Dispatchers.IO) {
         runCatching {
-            val cleanManifest = manifestUrl.trim()
-            val req = Request.Builder().url(cleanManifest).build()
-            val body = okHttpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) error("HTTP ${resp.code}")
-                resp.body?.string() ?: error("Empty manifest")
-            }
+            val cleanManifest = manifestUrl.trim().replace("stremio://", "https://")
+            val body = httpGet(cleanManifest) ?: error("Unable to reach manifest")
             val obj = json.parseToJsonElement(body).jsonObject
             val id = obj["id"]?.jsonPrimitive?.content ?: UUID.randomUUID().toString()
             val name = obj["name"]?.jsonPrimitive?.content ?: "Stremio Addon"
             val baseUrl = cleanManifest.substringBeforeLast("/manifest.json").trimEnd('/')
-            val addon = InstalledAddon(
-                id = id,
-                name = name,
-                baseUrl = baseUrl,
-                isNuvio = name.contains("Nuvio", ignoreCase = true) || cleanManifest.contains("nuvio", ignoreCase = true)
-            )
+            val addon = InstalledAddon(id, name, baseUrl, name.contains("Nuvio", true) || cleanManifest.contains("nuvio", true))
+
             val updated = getInstalledAddons().filterNot { it.id == addon.id } + addon
             secureVault.putSecret("stremio_addons_json", json.encodeToString(updated))
+
+            // Pull initial catalog items if the addon advertises catalogs
+            val catalogs = obj["catalogs"]?.jsonArray.orEmpty()
+            for (catEl in catalogs.take(2)) {
+                val cObj = catEl.jsonObject
+                val cType = cObj["type"]?.jsonPrimitive?.content ?: continue
+                val cId = cObj["id"]?.jsonPrimitive?.content ?: continue
+                syncAddonCatalog(addon, cType, cId)
+            }
             addon
+        }
+    }
+
+    private suspend fun syncAddonCatalog(addon: InstalledAddon, type: String, catalogId: String) {
+        val body = httpGet("${addon.baseUrl}/catalog/$type/$catalogId.json") ?: return
+        val metas = json.parseToJsonElement(body).jsonObject["metas"]?.jsonArray ?: return
+        for (mEl in metas.take(15)) {
+            val m = mEl.jsonObject
+            val imdb = m["imdb_id"]?.jsonPrimitive?.content ?: m["id"]?.jsonPrimitive?.content?.takeIf { it.startsWith("tt") }
+            val name = m["name"]?.jsonPrimitive?.content ?: continue
+            val poster = m["poster"]?.jsonPrimitive?.content
+            val isSeries = type == "series"
+            val unified = metadataResolver.resolveAndPersist(
+                RawMediaHint(
+                    rawTitleOrFilename = if (isSeries) "$name S01E01" else name,
+                    knownImdbId = imdb,
+                    season = if (isSeries) 1 else null,
+                    episode = if (isSeries) 1 else null,
+                    fallbackPosterUrl = poster
+                )
+            )
+            if (!imdb.isNullOrBlank()) {
+                queryStreamsInParallel(unified.canonicalKey, imdb, isSeries, if (isSeries) 1 else null, if (isSeries) 1 else null)
+            }
         }
     }
 
@@ -87,32 +108,19 @@ class StremioAddonEngine @Inject constructor(
         addons.map { addon ->
             async(Dispatchers.IO) {
                 runCatching {
-                    val url = "${addon.baseUrl}/stream/$type/$streamId.json"
-                    val req = Request.Builder().url(url).build()
-                    val body = okHttpClient.newCall(req).execute().use { resp ->
-                        if (!resp.isSuccessful) return@runCatching emptyList()
-                        resp.body?.string() ?: return@runCatching emptyList()
-                    }
-                    val root = json.parseToJsonElement(body).jsonObject
-                    val streams = root["streams"]?.jsonArray ?: return@runCatching emptyList()
-
+                    val body = httpGet("${addon.baseUrl}/stream/$type/$streamId.json") ?: return@runCatching emptyList()
+                    val streams = json.parseToJsonElement(body).jsonObject["streams"]?.jsonArray ?: return@runCatching emptyList()
                     streams.mapNotNull { el ->
                         val sObj = el.jsonObject
                         val streamUrl = sObj["url"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                        val label = sObj["title"]?.jsonPrimitive?.content
-                            ?: sObj["name"]?.jsonPrimitive?.content
-                            ?: addon.name
-
+                        val label = sObj["title"]?.jsonPrimitive?.content ?: sObj["name"]?.jsonPrimitive?.content ?: addon.name
                         val headers = mutableMapOf<String, String>()
-                        sObj["behaviorHints"]?.jsonObject
-                            ?.get("proxyHeaders")?.jsonObject
-                            ?.get("request")?.jsonObject
+                        sObj["behaviorHints"]?.jsonObject?.get("proxyHeaders")?.jsonObject?.get("request")?.jsonObject
                             ?.forEach { (k, v) -> headers[k] = v.jsonPrimitive.content }
 
-                        val linkId = "addon_${addon.id}_${streamUrl.hashCode()}"
                         dao.upsertSourceLink(
                             MediaSourceLinkEntity(
-                                sourceLinkId = linkId,
+                                sourceLinkId = "addon_${addon.id}_${streamUrl.hashCode()}",
                                 canonicalKey = canonicalKey,
                                 sourceType = if (addon.isNuvio) MediaSourceType.NUVIO else MediaSourceType.STREMIO,
                                 serverId = addon.id,
@@ -127,4 +135,10 @@ class StremioAddonEngine @Inject constructor(
             }
         }.awaitAll().flatten()
     }
+
+    private fun httpGet(url: String): String? = runCatching {
+        okHttpClient.newCall(Request.Builder().url(url).build()).execute().use { r ->
+            if (r.isSuccessful) r.body?.string() else null
+        }
+    }.getOrNull()
 }

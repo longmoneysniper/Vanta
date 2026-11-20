@@ -128,7 +128,7 @@ private fun CinemaHomeScreen(vm: HomeViewModel = hiltViewModel(), onLaunchPlayer
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF181A22)).border(1.dp, FrostedBorder, CircleShape).clickable { vm.refreshAllCatalogs() }, contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0x9912131A)).border(1.dp, FrostedBorder, CircleShape).clickable { vm.refreshAllCatalogs() }, contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                         }
                     }

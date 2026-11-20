@@ -163,3 +163,26 @@ private fun PosterCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
 
 @Composable
 private fun CinemaLibraryScreen(isSearch: Boolean, vm: HomeViewModel = hiltViewModel(), onLaunchPlayer: (String, String) -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    var query by remember { mutableStateOf("") }
+    var selected by remember { mutableStateOf<UnifiedMediaEntity?>(null) }
+    val list = remember(state.libraryItems, query) { if (query.isBlank()) state.libraryItems else state.libraryItems.filter { it.title.contains(query, true) } }
+
+    Column(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Text(if (isSearch) "Search" else "Library", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search movies & shows...") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, singleLine = true, shape = CircleShape, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(14.dp))
+        LazyVerticalGrid(GridCells.Adaptive(146.dp), contentPadding = PaddingValues(bottom = 100.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(list, key = { it.canonicalKey }) { m -> PosterCard(m) { selected = m } }
+        }
+    }
+
+    selected?.let { m ->
+        MediaDetailsSheet(m, vm.dao, vm.stremioEngine, onDismiss = { selected = null }) { key, linkId ->
+            selected = null
+            onLaunchPlayer(key, linkId)
+        }
+    }
+}
+

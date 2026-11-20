@@ -16,8 +16,8 @@ android {
         applicationId = "com.vanta.media"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0-phase3"
+        versionCode = 4
+        versionName = "0.4.0-phase4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -100,8 +100,11 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Phase 3: libmpv Engine, Media3 Session & LAN QR Generator
+    // libmpv Engine, Media3 Session & LAN QR Generator
     implementation("dev.jdtech.mpv:libmpv:0.4.0")
     implementation(libs.androidx.media3.session)
     implementation("com.google.zxing:core:3.5.3")
+
+    // Phase 4: Official Jellyfin Kotlin SDK
+    implementation(libs.jellyfin.core)
 }

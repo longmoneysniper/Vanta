@@ -12,16 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.*
@@ -40,9 +37,9 @@ import com.vanta.media.ui.theme.*
 fun VantaAppShell() {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
-    val isPlayerRoute = backStack?.destination?.route?.contains("Player") == true
+    val isPlayer = backStack?.destination?.route?.contains("Player") == true
     var tab by remember { mutableIntStateOf(0) }
-    val navItems = listOf(
+    val items = listOf(
         Triple("Home", Icons.Rounded.Home, VantaRoute.Home),
         Triple("Search", Icons.Rounded.Search, VantaRoute.Library),
         Triple("Library", Icons.Rounded.VideoLibrary, VantaRoute.Library),
@@ -51,11 +48,7 @@ fun VantaAppShell() {
     )
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        NavHost(
-            navController = nav,
-            startDestination = VantaRoute.Home,
-            modifier = Modifier.fillMaxSize()
-        ) {
+        NavHost(navController = nav, startDestination = VantaRoute.Home, modifier = Modifier.fillMaxSize()) {
             composable<VantaRoute.Home> {
                 CinemaHomeScreen(
                     onLaunchPlayer = { k, l -> nav.navigate(VantaRoute.Player(k, l)) },
@@ -63,51 +56,32 @@ fun VantaAppShell() {
                 )
             }
             composable<VantaRoute.Library> {
-                CinemaLibraryScreen(
-                    isSearchMode = tab == 1,
-                    onLaunchPlayer = { k, l -> nav.navigate(VantaRoute.Player(k, l)) }
-                )
+                CinemaLibraryScreen(isSearch = tab == 1) { k, l -> nav.navigate(VantaRoute.Player(k, l)) }
             }
             composable<VantaRoute.Sources> { SourcesScreen() }
             composable<VantaRoute.Settings> { SettingsScreen() }
             composable<VantaRoute.Player> { entry ->
                 val args = entry.toRoute<VantaRoute.Player>()
-                VantaPlayerScreen(
-                    canonicalKey = args.canonicalKey,
-                    sourceLinkId = args.sourceLinkId,
-                    onBack = { nav.popBackStack() }
-                )
+                VantaPlayerScreen(args.canonicalKey, args.sourceLinkId) { nav.popBackStack() }
             }
         }
 
-        if (!isPlayerRoute) {
+        if (!isPlayer) {
             Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xE612131A))
-                    .border(1.dp, Color(0x2EFFFFFF), CircleShape)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)
+                    .clip(CircleShape).background(Color(0xE612131A)).border(1.dp, Color(0x2EFFFFFF), CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                navItems.forEachIndexed { idx, (label, icon, route) ->
-                    val selected = tab == idx
+                items.forEachIndexed { idx, (label, icon, route) ->
+                    val sel = tab == idx
                     Column(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (selected) Color(0x26FF8A1F) else Color.Transparent)
-                            .clickable {
-                                tab = idx
-                                nav.navigate(route) { launchSingleTop = true }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.clip(CircleShape).background(if (sel) Color(0x26FF8A1F) else Color.Transparent)
+                            .clickable { tab = idx; nav.navigate(route) { launchSingleTop = true } }.padding(horizontal = 12.dp, vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(icon, label, tint = if (selected) AmberCorona else TextSecondary, modifier = Modifier.size(20.dp))
-                        Text(label, color = if (selected) TextPrimary else TextSecondary, fontSize = 10.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                        Icon(icon, label, tint = if (sel) AmberCorona else TextSecondary, modifier = Modifier.size(20.dp))
+                        Text(label, color = if (sel) TextPrimary else TextSecondary, fontSize = 10.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
                     }
                 }
             }
@@ -116,105 +90,76 @@ fun VantaAppShell() {
 }
 
 @Composable
-private fun CinemaHomeScreen(
-    vm: HomeViewModel = hiltViewModel(),
-    onLaunchPlayer: (String, String) -> Unit,
-    onOpenSources: () -> Unit
-) {
+private fun CinemaHomeScreen(vm: HomeViewModel = hiltViewModel(), onLaunchPlayer: (String, String) -> Unit, onOpenSources: () -> Unit) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var selectedMedia by remember { mutableStateOf<UnifiedMediaEntity?>(null) }
-    val groupedRows = remember(state.libraryItems) {
-        state.libraryItems.groupBy { it.catalogRow ?: "Trending" }
-    }
+    var selected by remember { mutableStateOf<UnifiedMediaEntity?>(null) }
+    val rows = remember(state.libraryItems) { state.libraryItems.groupBy { it.catalogRow ?: "Trending" } }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color.Black).statusBarsPadding(),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 104.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
-    ) {
-        // 1. Continue Watching Wide 16:9 Row
+    LazyColumn(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding(), contentPadding = PaddingValues(top = 12.dp, bottom = 104.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (state.continueWatching.isNotEmpty()) {
             item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(state.continueWatching, key = { it.canonicalKey }) { m ->
-                        WideEpisodeCard(m) { selectedMedia = m }
-                    }
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(state.continueWatching, key = { it.canonicalKey }) { m -> WideCard(m) { selected = m } }
                 }
             }
         }
-
-        // Empty State Only When No Addons/Servers Connected
         if (state.libraryItems.isEmpty() && state.continueWatching.isEmpty()) {
             item {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 32.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF101117))
-                        .border(1.dp, FrostedBorder, RoundedCornerShape(24.dp))
-                        .padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 32.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFF101117)).border(1.dp, FrostedBorder, RoundedCornerShape(24.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("VANTA • CINEMA, UNIFIED.", color = AmberCorona, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text("Connect AIOMetadata or Jellyfin", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("Open Sources to link your AIOMetadata manifest, AIOStreams/Torrentio, or Jellyfin server.", color = TextSecondary, fontSize = 13.sp)
-                    Button(
-                        onClick = onOpenSources,
-                        colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)
-                    ) { Text("Open Sources") }
+                    Button(onClick = onOpenSources, colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)) { Text("Open Sources") }
                 }
             }
         }
-
-        // 2. Clean AIOMetadata & Jellyfin Rows
-        groupedRows.forEach { (rowTitle, itemsInRow) ->
-            val isWideRow = rowTitle.contains("Upcoming", true) || rowTitle.contains("Next Up", true)
-            item(key = rowTitle) {
+        rows.forEach { (title, list) ->
+            val wide = title.contains("Upcoming", true) || title.contains("Next Up", true)
+            item(key = title) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(rowTitle, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF181A22))
-                                .border(1.dp, FrostedBorder, CircleShape)
-                                .clickable { vm.refreshAllCatalogs() },
-                            contentAlignment = Alignment.Center
-                        ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF181A22)).border(1.dp, FrostedBorder, CircleShape).clickable { vm.refreshAllCatalogs() }, contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                         }
                     }
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(itemsInRow, key = { it.canonicalKey }) { media ->
-                            if (isWideRow) {
-                                WideEpisodeCard(media) { selectedMedia = media }
-                            } else {
-                                FullBleedAioPosterCard(media) { selectedMedia = media }
-                            }
-                        }
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(list, key = { it.canonicalKey }) { m -> if (wide) WideCard(m) { selected = m } else PosterCard(m) { selected = m } }
                     }
                 }
             }
         }
     }
 
-    selectedMedia?.let { media ->
-        MediaDetailsSheet(
-            media = media,
-            dao = vm.dao,
-            stremioEngine = vm.stremioEngine,
-            onDismiss = { selectedMedia = null },
-            onSelectStream = { key, linkId ->
+    selected?.let { m ->
+        MediaDetailsSheet(m, vm.dao, vm.stremioEngine, onDismiss = { selected = null }) { key, linkId ->
+            selected = null
+            onLaunchPlayer(key, linkId)
+        }
+    }
+}
+
+@Composable
+private fun WideCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
+    val prog = if (m.durationMs > 0L) (m.playbackPositionMs.toFloat() / m.durationMs).coerceIn(0f, 1f) else 0f
+    Box(Modifier.width(272.dp).height(154.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF12141C)).border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp)).clickable(onClick = onClick)) {
+        AsyncImage(model = m.episodeStillUrl ?: m.backdropUrl ?: m.posterUrl, contentDescription = m.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x55000000), Color(0xEB050507)))))
+        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            if (m.seasonNumber != null && m.episodeNumber != null) Text("S${m.seasonNumber} E${m.episodeNumber}", color = AmberCorona, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(m.seriesTitle ?: m.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(m.episodeTitle ?: m.genres ?: "Select Stream", color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (prog > 0f) LinearProgressIndicator(progress = { prog }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp), color = AmberCorona, trackColor = Color(0x33FFFFFF))
+    }
+}
+
+@Composable
+private fun PosterCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
+    Box(Modifier.width(152.dp).height(228.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF12141C)).border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp)).clickable(onClick = onClick)) {
+        AsyncImage(model = m.posterUrl, contentDescription = m.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+private fun CinemaLibraryScreen(isSearch: Boolean, vm: HomeViewModel = hiltViewModel(), onLaunchPlayer: (String, String) -> Unit) {

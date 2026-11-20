@@ -198,7 +198,8 @@ class VantaMpvController @Inject constructor(
     }
     override fun eventProperty(property: String, value: String) {}
     override fun event(eventId: Int) {
-        if (eventId == MPVLib.MPV_EVENT_FILE_LOADED) refreshStats()
+        if (eventId == 8) refreshStats()
+
 
     }
 }

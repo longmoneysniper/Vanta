@@ -2,24 +2,21 @@
 <manifest xmlns:android="http://android.com"
     xmlns:tools="http://android.com">
 
-    <!-- Network & Local LAN / Proxy -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Foreground Media Playback & Notifications -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Android 13+ Granular Media Permissions & Legacy Fallback -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!-- Android TV / Leanback Compatibility -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -53,6 +50,15 @@
                 <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".player.service.VantaPlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

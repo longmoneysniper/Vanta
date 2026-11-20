@@ -69,11 +69,11 @@ class VantaMpvController @Inject constructor(
         MPVLib.init()
 
         MPVLib.addObserver(this)
-        MPVLib.observeProperty("time-pos", MPVLib.mpvFormat.MPV_FORMAT_DOUBLE)
-        MPVLib.observeProperty("duration", MPVLib.mpvFormat.MPV_FORMAT_DOUBLE)
-        MPVLib.observeProperty("pause", MPVLib.mpvFormat.MPV_FORMAT_FLAG)
-        MPVLib.observeProperty("chapter", MPVLib.mpvFormat.MPV_FORMAT_INT64)
-        MPVLib.observeProperty("chapters", MPVLib.mpvFormat.MPV_FORMAT_INT64)
+        MPVLib.observeProperty("time-pos", MPVLib.MPV_FORMAT_DOUBLE)
+        MPVLib.observeProperty("duration", MPVLib.MPV_FORMAT_DOUBLE)
+        MPVLib.observeProperty("pause", MPVLib.MPV_FORMAT_FLAG)
+        MPVLib.observeProperty("chapter", MPVLib.MPV_FORMAT_INT64)
+        MPVLib.observeProperty("chapters", MPVLib.MPV_FORMAT_INT64)
         initialized = true
     }
 
@@ -199,7 +199,5 @@ class VantaMpvController @Inject constructor(
     override fun eventProperty(property: String, value: String) {}
     override fun event(eventId: Int) {
         if (eventId == 8) refreshStats()
-
-
     }
 }

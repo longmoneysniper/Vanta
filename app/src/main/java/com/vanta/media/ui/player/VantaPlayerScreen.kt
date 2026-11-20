@@ -65,7 +65,6 @@ fun VantaPlayerScreen(
             .background(Color.Black)
             .clickable { hudVisible = !hudVisible }
     ) {
-        // libmpv Video Surface
         AndroidView(
             factory = { ctx ->
                 SurfaceView(ctx).apply {
@@ -83,7 +82,6 @@ fun VantaPlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Real-Time Pipeline Stats Overlay
         if (playbackState.showStatsOverlay) {
             Column(
                 modifier = Modifier
@@ -103,7 +101,6 @@ fun VantaPlayerScreen(
             }
         }
 
-        // Frosted-Glass Touch & D-Pad HUD
         if (hudVisible) {
             Column(
                 modifier = Modifier
@@ -112,7 +109,6 @@ fun VantaPlayerScreen(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Top Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,7 +150,6 @@ fun VantaPlayerScreen(
                     }
                 }
 
-                // Bottom Transport & Subtitle Studio Bar
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -198,3 +193,4 @@ fun VantaPlayerScreen(
                                 Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30s", tint = TextPrimary)
                             }
                             if (playbackState.chapterCount > 0) {
+                                TextButton(onClick = { viewModel

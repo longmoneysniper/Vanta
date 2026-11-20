@@ -2,19 +2,33 @@ package com.vanta.media.data.providers.jellyfin
 
 import android.content.Context
 import com.vanta.media.data.local.dao.VantaMediaDao
-import com.vanta.media.data.local.entity.*
+import com.vanta.media.data.local.entity.MediaSourceLinkEntity
+import com.vanta.media.data.local.entity.MediaSourceType
 import com.vanta.media.data.security.SecureVault
-import com.vanta.media.domain.metadata.*
+import com.vanta.media.domain.metadata.MetadataResolver
+import com.vanta.media.domain.metadata.RawMediaHint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.jellyfin.sdk.api.client.extensions.*
+import org.jellyfin.sdk.api.client.extensions.authenticateUserByName
+import org.jellyfin.sdk.api.client.extensions.authenticateWithQuickConnect
+import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.playStateApi
+import org.jellyfin.sdk.api.client.extensions.quickConnectApi
+import org.jellyfin.sdk.api.client.extensions.tvShowsApi
+import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
-import org.jellyfin.sdk.model.api.*
+import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ItemFields
+import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.PlayMethod
+import org.jellyfin.sdk.model.api.PlaybackProgressInfo
+import org.jellyfin.sdk.model.api.RepeatMode
+import org.jellyfin.sdk.model.api.SortOrder
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,7 +48,9 @@ class JellyfinRepository @Inject constructor(
     }
 
     fun getSavedServers(): List<JellyfinServerProfile> =
-        secureVault.getSecret("jellyfin_servers_json")?.let { runCatching { json.decodeFromString<List<JellyfinServerProfile>>(it) }.getOrNull() }.orEmpty()
+        secureVault.getSecret("jellyfin_servers_json")
+            ?.let { runCatching { json.decodeFromString<List<JellyfinServerProfile>>(it) }.getOrNull() }
+            .orEmpty()
 
     private fun saveServer(p: JellyfinServerProfile) {
         val list = getSavedServers().filterNot { it.serverId == p.serverId } + p
@@ -97,7 +113,18 @@ class JellyfinRepository @Inject constructor(
 
     suspend fun reportPlaybackProgress(profile: JellyfinServerProfile, itemId: String, posMs: Long, paused: Boolean) = withContext(Dispatchers.IO) {
         runCatching {
-            jellyfin.createApi(baseUrl = profile.baseUrl, accessToken = profile.accessToken).playStateApi.reportPlaybackProgress(PlaybackProgressInfo(itemId = UUID.fromString(itemId), positionTicks = posMs * 10_000L, isPaused = paused))
+            jellyfin.createApi(baseUrl = profile.baseUrl, accessToken = profile.accessToken).playStateApi.reportPlaybackProgress(
+                PlaybackProgressInfo(
+                    itemId = UUID.fromString(itemId),
+                    positionTicks = posMs * 10_000L,
+                    isPaused = paused,
+                    isMuted = false,
+                    canSeek = true,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE
+                )
+            )
+            Unit
         }
     }
 }

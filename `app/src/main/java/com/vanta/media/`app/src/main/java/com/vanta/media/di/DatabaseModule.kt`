@@ -1,0 +1,37 @@
+```kotlin
+package com.vanta.media.di
+
+import android.content.Context
+import androidx.room.Room
+import com.vanta.media.data.local.VantaDatabase
+import com.vanta.media.data.local.dao.VantaMediaDao
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+
+    @Provides
+    @Singleton
+    fun provideVantaDatabase(@ApplicationContext context: Context): VantaDatabase =
+        Room.databaseBuilder(context, VantaDatabase::class.java, "vanta_media.db")
+            .fallbackToDestructiveMigration()
+            .build()
+
+    @Provides
+    fun provideVantaMediaDao(db: VantaDatabase): VantaMediaDao = db.mediaDao()
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .build()
+}

@@ -11,6 +11,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Fix AndroidManifest namespace
+        run: |
+          NS="http://android.com"
+          sed -i "s|xmlns:android=\"[^\"]*\"|xmlns:android=\"${NS}/apk/res/android\"|g" app/src/main/AndroidManifest.xml
+          sed -i "s|xmlns:tools=\"[^\"]*\"|xmlns:tools=\"${NS}/tools\"|g" app/src/main/AndroidManifest.xml
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

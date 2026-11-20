@@ -164,7 +164,10 @@ private fun WideCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
 @Composable
 private fun PosterCard(m: UnifiedMediaEntity, onClick: () -> Unit) {
     Box(Modifier.width(152.dp).height(228.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF12141C)).border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(18.dp)).clickable(onClick = onClick)) {
-ifier = Modifier.fillMaxSize())
+        AsyncImage(model = m.posterUrl, contentDescription = m.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    }
+}
+
     }
 }
 

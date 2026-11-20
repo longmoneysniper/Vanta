@@ -14,17 +14,18 @@ enum class MediaSourceType { JELLYFIN, KODI, STREMIO, NUVIO, DEBRID, LOCAL_SMB }
         Index(value = ["seriesGroupKey"]),
         Index(value = ["tmdbId"]),
         Index(value = ["isFamilyFriendly"]),
-        Index(value = ["lastWatchedAt"])
+        Index(value = ["lastWatchedAt"]),
+        Index(value = ["catalogRow"])
     ]
 )
 data class UnifiedMediaEntity(
-    @PrimaryKey val canonicalKey: String, // e.g. "movie:27205" or "tv:1396:s01:e01"
+    @PrimaryKey val canonicalKey: String,
     val tmdbId: Int?,
     val imdbId: String?,
     val mediaType: MediaType,
     val title: String,
     val seriesTitle: String? = null,
-    val seriesGroupKey: String? = null, // e.g. "tv:1396" to deduplicate Continue Watching
+    val seriesGroupKey: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val episodeTitle: String? = null,
@@ -32,9 +33,14 @@ data class UnifiedMediaEntity(
     val posterUrl: String? = null,
     val backdropUrl: String? = null,
     val episodeStillUrl: String? = null,
+    val logoUrl: String? = null,
+    val catalogRow: String? = null,
+    val rankBadge: String? = null,
+    val certification: String? = null,
+    val genres: String? = null,
     val releaseYear: Int? = null,
     val rating: Float? = null,
-    val isFamilyFriendly: Boolean = true, // Zero-migration Kids Mode SQL filter
+    val isFamilyFriendly: Boolean = true,
     val playbackPositionMs: Long = 0L,
     val durationMs: Long = 0L,
     val lastWatchedAt: Long? = null,
@@ -50,10 +56,10 @@ data class MediaSourceLinkEntity(
     val canonicalKey: String,
     val sourceType: MediaSourceType,
     val serverId: String,
-    val displayLabel: String, // e.g., "4K HDR10 • TrueHD Atmos • Jellyfin"
+    val displayLabel: String,
     val streamUrl: String,
-    val customHeadersJson: String = "{}", // Serialized Map<String, String>
-    val externalSubtitlesJson: String = "[]", // Serialized List<ExternalSubtitle>
+    val customHeadersJson: String = "{}",
+    val externalSubtitlesJson: String = "[]",
     val introStartMs: Long? = null,
     val introEndMs: Long? = null,
     val outroStartMs: Long? = null
@@ -61,19 +67,15 @@ data class MediaSourceLinkEntity(
 
 @Entity(tableName = "tmdb_lookup_cache")
 data class TmdbLookupCacheEntity(
-    @PrimaryKey val lookupKey: String, // Normalized title+year or imdbId
-    val tmdbId: Int?, // Null indicates a negative match (unmatchable NAS file)
+    @PrimaryKey val lookupKey: String,
+    val tmdbId: Int?,
     val mediaType: MediaType?,
     val resolvedJson: String?,
     val cachedAtMs: Long,
     val isNegativeMatch: Boolean
 ) {
     fun isExpired(nowMs: Long = System.currentTimeMillis()): Boolean {
-        val ttlMs = if (isNegativeMatch) {
-            7L * 24 * 60 * 60 * 1000 // 7-day negative cache for unmatchable NAS files
-        } else {
-            30L * 24 * 60 * 60 * 1000 // 30-day positive metadata cache
-        }
+        val ttlMs = if (isNegativeMatch) 7L * 24 * 60 * 60 * 1000 else 30L * 24 * 60 * 60 * 1000
         return (nowMs - cachedAtMs) > ttlMs
     }
 }

@@ -16,8 +16,8 @@ android {
         applicationId = "com.vanta.media"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0-phase4"
+        versionCode = 5
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -105,6 +105,6 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation("com.google.zxing:core:3.5.3")
 
-    // Phase 4: Official Jellyfin Kotlin SDK
+    // Official Jellyfin Kotlin SDK
     implementation(libs.jellyfin.core)
 }

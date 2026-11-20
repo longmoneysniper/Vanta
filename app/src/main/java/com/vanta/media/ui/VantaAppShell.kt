@@ -193,7 +193,6 @@ private fun CinemaLibraryScreen(isSearch: Boolean, vm: HomeViewModel = hiltViewM
             selected = null
             onLaunchPlayer(key, linkId)
         }
-    }
-    
+    }   
 
 

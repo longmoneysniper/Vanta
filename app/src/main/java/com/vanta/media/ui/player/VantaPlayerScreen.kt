@@ -6,10 +6,7 @@ import android.os.Build
 import android.util.Rational
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,160 +34,103 @@ fun VantaPlayerScreen(
     onBack: () -> Unit,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
-    val activity = context as? Activity
-    val playbackState by viewModel.mpvController.state.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as? Activity
+    val state by viewModel.mpvController.state.collectAsStateWithLifecycle()
     val meta by viewModel.meta.collectAsStateWithLifecycle()
+    var hud by remember { mutableStateOf(true) }
+    var subs by remember { mutableStateOf(false) }
+    var qr by remember { mutableStateOf(false) }
+    var hz24 by remember { mutableStateOf(true) }
 
-    var hudVisible by remember { mutableStateOf(true) }
-    var showSubtitleStudio by remember { mutableStateOf(false) }
-    var showQrModal by remember { mutableStateOf(false) }
-    var lock24Hz by remember { mutableStateOf(true) }
-
-    LaunchedEffect(canonicalKey, sourceLinkId) {
-        viewModel.loadFromRoom(canonicalKey, sourceLinkId)
+    LaunchedEffect(canonicalKey, sourceLinkId) { viewModel.loadFromRoom(canonicalKey, sourceLinkId) }
+    DisposableEffect(hz24) {
+        activity?.let { RefreshRateHelper.lockCinema24Hz(it, hz24) }
+        onDispose { viewModel.persistProgress(canonicalKey); activity?.let { RefreshRateHelper.lockCinema24Hz(it, false) } }
     }
 
-    DisposableEffect(lock24Hz) {
-        activity?.let { RefreshRateHelper.lockCinema24Hz(it, lock24Hz) }
-        onDispose {
-            viewModel.persistProgress(canonicalKey)
-            activity?.let { RefreshRateHelper.lockCinema24Hz(it, false) }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .clickable { hudVisible = !hudVisible }
-    ) {
+    Box(Modifier.fillMaxSize().background(Color.Black).clickable { hud = !hud }) {
         AndroidView(
             factory = { ctx ->
                 SurfaceView(ctx).apply {
                     holder.addCallback(object : SurfaceHolder.Callback {
-                        override fun surfaceCreated(holder: SurfaceHolder) {
-                            viewModel.mpvController.attachSurface(holder.surface)
-                        }
-                        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-                        override fun surfaceDestroyed(holder: SurfaceHolder) {
-                            viewModel.mpvController.detachSurface()
-                        }
+                        override fun surfaceCreated(h: SurfaceHolder) = viewModel.mpvController.attachSurface(h.surface)
+                        override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, ht: Int) {}
+                        override fun surfaceDestroyed(h: SurfaceHolder) = viewModel.mpvController.detachSurface()
                     })
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
 
-        if (playbackState.showStatsOverlay) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(ObsidianSurface.copy(alpha = 0.86f))
-                    .border(1.dp, FrostedBorder, RoundedCornerShape(16.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("VANTA PIPELINE STATS", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
-                Text("Codec: ${playbackState.stats.videoCodec}", color = TextPrimary, style = MaterialTheme.typography.bodySmall)
-                Text("Decoder: ${playbackState.stats.hwDecoder}", color = TextPrimary, style = MaterialTheme.typography.bodySmall)
-                Text("Res / FPS: ${playbackState.stats.resolution} @ ${playbackState.stats.fps}", color = TextPrimary, style = MaterialTheme.typography.bodySmall)
-                Text("Cache: ${playbackState.stats.cachePercent}% • Drops: ${playbackState.stats.droppedFrames}", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+        if (state.showStatsOverlay) {
+            Column(Modifier.align(Alignment.TopEnd).padding(16.dp).clip(RoundedCornerShape(14.dp)).background(ObsidianSurface.copy(alpha = 0.85f)).border(1.dp, FrostedBorder, RoundedCornerShape(14.dp)).padding(12.dp)) {
+                Text("PIPELINE STATS", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
+                Text("${state.stats.videoCodec} • ${state.stats.hwDecoder}", color = TextPrimary, style = MaterialTheme.typography.bodySmall)
+                Text("${state.stats.resolution} @ ${state.stats.fps}fps", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
 
-        if (hudVisible) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        if (hud) {
+            Column(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            viewModel.persistProgress(canonicalKey)
-                            onBack()
-                        }) {
-                            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-                        }
-                        Column {
-                            Text(meta.media?.title ?: "Vanta Cinema", color = TextPrimary, fontWeight = FontWeight.Bold)
-                            Text(meta.link?.displayLabel ?: "libmpv Direct", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
-                        }
+                        IconButton(onClick = { viewModel.persistProgress(canonicalKey); onBack() }) { Icon(Icons.Rounded.ArrowBack, null, tint = TextPrimary) }
+                        Text(meta.media?.title ?: "Vanta Player", color = TextPrimary, fontWeight = FontWeight.Bold)
                     }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        IconButton(onClick = { lock24Hz = !lock24Hz }) {
-                            Icon(Icons.Rounded.Movie, contentDescription = "24Hz Lock", tint = if (lock24Hz) AmberCorona else TextSecondary)
-                        }
-                        IconButton(onClick = { viewModel.mpvController.toggleStatsOverlay() }) {
-                            Icon(Icons.Rounded.Analytics, contentDescription = "Pipeline Stats", tint = AmberCorona)
-                        }
-                        IconButton(onClick = { showQrModal = true }) {
-                            Icon(Icons.Rounded.QrCode2, contentDescription = "LAN Companion", tint = TextPrimary)
-                        }
+                    Row {
+                        IconButton(onClick = { hz24 = !hz24 }) { Icon(Icons.Rounded.Movie, null, tint = if (hz24) AmberCorona else TextSecondary) }
+                        IconButton(onClick = { viewModel.mpvController.toggleStatsOverlay() }) { Icon(Icons.Rounded.Analytics, null, tint = AmberCorona) }
+                        IconButton(onClick = { qr = true }) { Icon(Icons.Rounded.QrCode2, null, tint = TextPrimary) }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null) {
-                            IconButton(onClick = {
-                                val params = PictureInPictureParams.Builder()
-                                    .setAspectRatio(Rational(16, 9))
-                                    .build()
-                                activity.enterPictureInPictureMode(params)
-                            }) {
-                                Icon(Icons.Rounded.PictureInPictureAlt, contentDescription = "PiP", tint = TextPrimary)
+                            IconButton(onClick = { activity.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()) }) {
+                                Icon(Icons.Rounded.PictureInPictureAlt, null, tint = TextPrimary)
                             }
                         }
                     }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(ObsidianSurface.copy(alpha = 0.85f))
-                        .border(1.dp, FrostedBorder, RoundedCornerShape(22.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val progress = if (playbackState.durationMs > 0) {
-                        (playbackState.positionMs.toFloat() / playbackState.durationMs).coerceIn(0f, 1f)
-                    } else 0f
-
-                    Slider(
-                        value = progress,
-                        onValueChange = { ratio ->
-                            viewModel.mpvController.seekTo((ratio * playbackState.durationMs).toLong())
-                        },
-                        colors = SliderDefaults.colors(thumbColor = AmberCorona, activeTrackColor = AmberCorona)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(ObsidianSurface.copy(alpha = 0.85f)).border(1.dp, FrostedBorder, RoundedCornerShape(20.dp)).padding(14.dp)) {
+                    val prog = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
+                    Slider(value = prog, onValueChange = { viewModel.mpvController.seekTo((it * state.durationMs).toLong()) }, colors = SliderDefaults.colors(thumbColor = AmberCorona, activeTrackColor = AmberCorona))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { viewModel.mpvController.seekRelative(-15) }) { Icon(Icons.Rounded.Replay10, null, tint = TextPrimary) }
+                            FilledIconButton(onClick = { viewModel.mpvController.togglePlayPause() }, colors = IconButtonDefaults.filledIconButtonColors(containerColor = AmberCorona, contentColor = OledObsidian)) {
+                                Icon(if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null)
+                            }
+                            IconButton(onClick = { viewModel.mpvController.seekRelative(30) }) { Icon(Icons.Rounded.Forward30, null, tint = TextPrimary) }
+                            if (state.chapterCount > 0) TextButton(onClick = { viewModel.mpvController.skipChapter(1) }) { Text("Chapter+", color = AmberCorona) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(onClick = { subs = !subs }) { Text("Subs") }
+                            OutlinedButton(onClick = { viewModel.mpvController.toggleHardwareDecoderFallback() }) { Text(if (state.isHwDecoding) "HW" else "SW") }
+                        }
+                    }
+                    if (subs) {
+                        var subUrl by remember { mutableStateOf("") }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { viewModel.mpvController.seekRelative(-15) }) {
-                                Icon(Icons.Rounded.Replay10, contentDescription = "Rewind 15s", tint = TextPrimary)
-                            }
-                            FilledIconButton(
-                                onClick = { viewModel.mpvController.togglePlayPause() },
-                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = AmberCorona, contentColor = OledObsidian)
-                            ) {
-                                Icon(
-                                    if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    contentDescription = "Play/Pause"
-                                )
-                            }
-                            IconButton(onClick = { viewModel.mpvController.seekRelative(30) }) {
-                                Icon(Icons.Rounded.Forward30, contentDescription = "Forward 30s", tint = TextPrimary)
-                            }
-                            if (playbackState.chapterCount > 0) {
-                                TextButton(onClick = { viewModel
+                            Slider(value = state.subtitleStyle.scale, onValueChange = { viewModel.mpvController.updateSubtitleStyle(state.subtitleStyle.copy(scale = it)) }, valueRange = 0.6f..1.8f, modifier = Modifier.weight(1f))
+                            OutlinedTextField(value = subUrl, onValueChange = { subUrl = it }, placeholder = { Text("Sub URL") }, singleLine = true, modifier = Modifier.weight(1f))
+                            Button(onClick = { if (subUrl.isNotBlank()) { viewModel.mpvController.addExternalSubtitle(subUrl); subUrl = "" } }, colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)) { Text("Load") }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (qr) {
+            AlertDialog(
+                onDismissRequest = { qr = false },
+                containerColor = ObsidianSurface,
+                title = { Text("LAN Companion Remote", color = TextPrimary) },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        meta.companionQr?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(180.dp)) }
+                        Text(meta.companionUrl, color = AmberCorona, style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { qr = false }) { Text("Close", color = AmberCorona) } }
+            )
+        }
+    }
+}

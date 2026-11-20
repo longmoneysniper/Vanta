@@ -94,7 +94,15 @@ fun VantaAppShell() {
 private fun CinemaHomeScreen(vm: HomeViewModel = hiltViewModel(), onLaunchPlayer: (String, String) -> Unit, onOpenSources: () -> Unit) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     var selected by remember { mutableStateOf<UnifiedMediaEntity?>(null) }
-    val rows = remember(state.libraryItems) { state.libraryItems.groupBy { it.catalogRow ?: "Trending" } }
+    val rows = remember(state.libraryItems) {
+    state.libraryItems
+        .filter { it.catalogId != "search" }
+        .sortedBy { it.catalogOrder }
+        .groupBy { it.catalogId ?: it.catalogRow ?: "Trending" }
+        .values
+        .map { list -> (list.first().catalogRow ?: "Trending") to list }
+}
+ } }
 
     LazyColumn(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding(), contentPadding = PaddingValues(top = 12.dp, bottom = 104.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         if (state.continueWatching.isNotEmpty()) {

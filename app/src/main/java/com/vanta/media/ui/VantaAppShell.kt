@@ -3,6 +3,7 @@ package com.vanta.media.ui
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,11 +27,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import coil3.compose.AsyncImage
 import com.vanta.media.data.local.entity.UnifiedMediaEntity
 import com.vanta.media.navigation.VantaRoute
 import com.vanta.media.ui.components.AnamorphicEclipseLogo
 import com.vanta.media.ui.home.HomeViewModel
+import com.vanta.media.ui.player.VantaPlayerScreen
 import com.vanta.media.ui.theme.*
 
 @Composable
@@ -122,17 +125,34 @@ fun VantaAppShell() {
                 startDestination = VantaRoute.Home,
                 modifier = Modifier.fillMaxSize()
             ) {
-                composable<VantaRoute.Home> { Phase2HomeScreen() }
-                composable<VantaRoute.Library> { Phase2PlaceholderScreen("Unified Library (Phase 4 Sources)") }
-                composable<VantaRoute.Sources> { Phase2PlaceholderScreen("Jellyfin • Stremio • Kodi • Debrid • SMB") }
-                composable<VantaRoute.Settings> { Phase2PlaceholderScreen("Vanta Settings & PunchPlay.tv") }
+                composable<VantaRoute.Home> {
+                    Phase3HomeScreen(
+                        onPlayMedia = { canonicalKey, linkId ->
+                            navController.navigate(VantaRoute.Player(canonicalKey, linkId))
+                        }
+                    )
+                }
+                composable<VantaRoute.Library> { Phase3PlaceholderScreen("Unified Library") }
+                composable<VantaRoute.Sources> { Phase3PlaceholderScreen("Jellyfin • Stremio • Kodi • Debrid • SMB") }
+                composable<VantaRoute.Settings> { Phase3PlaceholderScreen("Vanta Settings & PunchPlay.tv") }
+                composable<VantaRoute.Player> { backStackEntry ->
+                    val args = backStackEntry.toRoute<VantaRoute.Player>()
+                    VantaPlayerScreen(
+                        canonicalKey = args.canonicalKey,
+                        sourceLinkId = args.sourceLinkId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun Phase2HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+private fun Phase3HomeScreen(
+    onPlayMedia: (String, String) -> Unit,
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var tmdbInput by remember { mutableStateOf("") }
 
@@ -176,13 +196,7 @@ private fun Phase2HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("PHASE 2 • METADATA RESOLVER & ROOM VAULT", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
-                Text(
-                    if (state.hasTmdbKey) "TMDB API Key Encrypted in Android Keystore"
-                    else "Enter TMDB API Key to enrich posters, stills & IMDb IDs",
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text("PHASE 3 • LIBMPV PLAYER, 24HZ LOCK & QR REMOTE READY", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = tmdbInput,
@@ -197,21 +211,7 @@ private fun Phase2HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
                                 viewModel.saveTmdbApiKey(tmdbInput)
                                 tmdbInput = ""
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)
-                    ) {
-                        Text("Save")
-                    }
-                }
-                OutlinedButton(onClick = { viewModel.ingestSampleItems() }) {
-                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Test MetadataResolver & Series Deduplication")
-                }
-            }
-        }
+                        }, 
 
-        if (state.continueWatching.isNotEmpty()) {
-            item {
-                Text("Continue Watching (Deduplicated by Series)", color = TextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
+
+            

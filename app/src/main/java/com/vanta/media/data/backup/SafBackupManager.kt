@@ -45,6 +45,7 @@ class SafBackupManager @Inject constructor(
             context.contentResolver.openOutputStream(uri)?.use { out ->
                 out.write(serialized.toByteArray(Charsets.UTF_8))
             } ?: error("Unable to open SAF output stream")
+            Unit
         }
     }
 
@@ -61,6 +62,7 @@ class SafBackupManager @Inject constructor(
             snapshot.tmdbApiKey?.let { secureVault.putSecret("tmdb_api_key", it) }
             snapshot.rdApiToken?.let { secureVault.putSecret("rd_api_token", it) }
             snapshot.punchPlayToken?.let { secureVault.putSecret("punchplay_access_token", it) }
+            Unit
         }
     }
 }

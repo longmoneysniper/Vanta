@@ -1,15 +1,11 @@
 package com.vanta.media.ui
 
 import android.content.res.Configuration
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,9 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import androidx.navigation.toRoute
 import coil3.compose.AsyncImage
 import com.vanta.media.data.local.entity.UnifiedMediaEntity
@@ -43,13 +37,11 @@ import com.vanta.media.ui.theme.*
 
 @Composable
 fun VantaAppShell() {
-    val navController = rememberNavController()
-    val configuration = LocalConfiguration.current
-    val isTvOrLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
-        configuration.screenWidthDp >= 840
-
-    var selectedIndex by remember { mutableIntStateOf(0) }
-    val navItems = listOf(
+    val nav = rememberNavController()
+    val cfg = LocalConfiguration.current
+    val isTv = cfg.orientation == Configuration.ORIENTATION_LANDSCAPE || cfg.screenWidthDp >= 840
+    var tab by remember { mutableIntStateOf(0) }
+    val items = listOf(
         Triple("Home", Icons.Rounded.Home, VantaRoute.Home),
         Triple("Library", Icons.Rounded.MovieFilter, VantaRoute.Library),
         Triple("Sources", Icons.Rounded.Dns, VantaRoute.Sources),
@@ -59,100 +51,41 @@ fun VantaAppShell() {
     Scaffold(
         containerColor = OledObsidian,
         bottomBar = {
-            if (!isTvOrLandscape) {
-                NavigationBar(
-                    containerColor = ObsidianSurface.copy(alpha = 0.88f),
-                    tonalElevation = 0.dp
-                ) {
-                    navItems.forEachIndexed { index, (label, icon, route) ->
+            if (!isTv) {
+                NavigationBar(containerColor = ObsidianSurface.copy(alpha = 0.88f)) {
+                    items.forEachIndexed { idx, (label, icon, route) ->
                         NavigationBarItem(
-                            selected = selectedIndex == index,
-                            onClick = {
-                                selectedIndex = index
-                                navController.navigate(route) { launchSingleTop = true }
-                            },
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = AmberCorona,
-                                selectedTextColor = AmberCorona,
-                                indicatorColor = AmberCorona.copy(alpha = 0.16f),
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
-                            )
+                            selected = tab == idx,
+                            onClick = { tab = idx; nav.navigate(route) { launchSingleTop = true } },
+                            icon = { Icon(icon, label) },
+                            label = { Text(label) }
                         )
                     }
                 }
             }
         }
-    ) { innerPadding ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(OledObsidian)
-                .padding(innerPadding)
-        ) {
-            if (isTvOrLandscape) {
-                NavigationRail(
-                    containerColor = ObsidianSurface.copy(alpha = 0.78f),
-                    header = {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 16.dp)
-                        ) {
-                            AnamorphicEclipseLogo(size = 32.dp)
-                        }
-                    }
-                ) {
-                    navItems.forEachIndexed { index, (label, icon, route) ->
+    ) { pad ->
+        Row(Modifier.fillMaxSize().background(OledObsidian).padding(pad)) {
+            if (isTv) {
+                NavigationRail(containerColor = ObsidianSurface.copy(alpha = 0.78f), header = { AnamorphicEclipseLogo(size = 30.dp) }) {
+                    items.forEachIndexed { idx, (label, icon, route) ->
                         NavigationRailItem(
-                            selected = selectedIndex == index,
-                            onClick = {
-                                selectedIndex = index
-                                navController.navigate(route) { launchSingleTop = true }
-                            },
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            colors = NavigationRailItemDefaults.colors(
-                                selectedIconColor = AmberCorona,
-                                selectedTextColor = AmberCorona,
-                                indicatorColor = AmberCorona.copy(alpha = 0.16f),
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
-                            )
+                            selected = tab == idx,
+                            onClick = { tab = idx; nav.navigate(route) { launchSingleTop = true } },
+                            icon = { Icon(icon, label) },
+                            label = { Text(label) }
                         )
                     }
                 }
             }
-
-            NavHost(
-                navController = navController,
-                startDestination = VantaRoute.Home,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                composable<VantaRoute.Home> {
-                    VantaHomeScreen(
-                        onPlayMedia = { canonicalKey, linkId ->
-                            navController.navigate(VantaRoute.Player(canonicalKey, linkId))
-                        }
-                    )
-                }
-                composable<VantaRoute.Library> {
-                    VantaLibraryGridScreen(
-                        onPlayMedia = { canonicalKey, linkId ->
-                            navController.navigate(VantaRoute.Player(canonicalKey, linkId))
-                        }
-                    )
-                }
+            NavHost(navController = nav, startDestination = VantaRoute.Home, modifier = Modifier.fillMaxSize()) {
+                composable<VantaRoute.Home> { VantaHomeScreen { k, l -> nav.navigate(VantaRoute.Player(k, l)) } }
+                composable<VantaRoute.Library> { VantaLibraryGrid { k, l -> nav.navigate(VantaRoute.Player(k, l)) } }
                 composable<VantaRoute.Sources> { SourcesScreen() }
                 composable<VantaRoute.Settings> { SettingsScreen() }
-                composable<VantaRoute.Player> { backStackEntry ->
-                    val args = backStackEntry.toRoute<VantaRoute.Player>()
-                    VantaPlayerScreen(
-                        canonicalKey = args.canonicalKey,
-                        sourceLinkId = args.sourceLinkId,
-                        onBack = { navController.popBackStack() }
-                    )
+                composable<VantaRoute.Player> { entry ->
+                    val args = entry.toRoute<VantaRoute.Player>()
+                    VantaPlayerScreen(args.canonicalKey, args.sourceLinkId) { nav.popBackStack() }
                 }
             }
         }
@@ -160,62 +93,70 @@ fun VantaAppShell() {
 }
 
 @Composable
-private fun VantaHomeScreen(
-    onPlayMedia: (String, String) -> Unit,
-    viewModel: HomeViewModel = hiltViewModel()
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tmdbInput by remember { mutableStateOf("") }
+private fun VantaHomeScreen(vm: HomeViewModel = hiltViewModel(), onPlay: (String, String) -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    var keyInput by remember { mutableStateOf("") }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentPadding = PaddingValues(vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnamorphicEclipseLogo(size = 34.dp)
+                    AnamorphicEclipseLogo(size = 32.dp)
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Text("VANTA", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Text("Cinema, Unified.", style = MaterialTheme.typography.labelMedium, color = AmberCorona)
                     }
                 }
-                FilterChip(
-                    selected = state.kidsModeEnabled,
-                    onClick = { viewModel.toggleKidsMode(!state.kidsModeEnabled) },
-                    label = { Text(if (state.kidsModeEnabled) "Kids Mode ON" else "Kids Mode") },
-                    leadingIcon = { Icon(Icons.Rounded.ChildCare, contentDescription = null) }
-                )
+                FilterChip(selected = state.kidsModeEnabled, onClick = { vm.toggleKidsMode(!state.kidsModeEnabled) }, label = { Text(if (state.kidsModeEnabled) "Kids ON" else "Kids") })
             }
         }
-
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(FrostedGlassFill, CrimsonFlare.copy(alpha = 0.14f))))
-                    .border(1.dp, FrostedBorder, RoundedCornerShape(22.dp))
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(FrostedGlassFill, CrimsonFlare.copy(alpha = 0.14f)))).border(1.dp, FrostedBorder, RoundedCornerShape(20.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("VANTA v1.0.0 • CINEMA, UNIFIED.", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = tmdbInput,
-                        onValueChange = { tmdbInput = it },
-                        placeholder = { Text("TMDB v3 API Key") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Button(
-                        onClick = {
-                            if (tmdbInput
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = keyInput, onValueChange = { keyInput = it }, placeholder = { Text("TMDB API Key") }, singleLine = true, modifier = Modifier.weight(1f))
+                    Button(onClick = { if (keyInput.isNotBlank()) { vm.saveTmdbApiKey(keyInput); keyInput = "" } }, colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)) { Text("Save") }
+                }
+                OutlinedButton(onClick = { vm.ingestSampleItems() }) { Text("Load Demo Library") }
+            }
+        }
+        if (state.continueWatching.isNotEmpty()) {
+            item {
+                Text("Continue Watching", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(state.continueWatching, key = { it.canonicalKey }) { m -> MediaCard(m, true) { onPlay(m.canonicalKey, "demo_link_1") } }
+                }
+            }
+        }
+        if (state.libraryItems.isNotEmpty()) {
+            item {
+                Text("Unified Library", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(state.libraryItems, key = { it.canonicalKey }) { m -> MediaCard(m, false) { onPlay(m.canonicalKey, "demo_link_0") } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VantaLibraryGrid(vm: HomeViewModel = hiltViewModel(), onPlay: (String, String) -> Unit) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    LazyVerticalGrid(GridCells.Adaptive(136.dp), Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(state.libraryItems, key = { it.canonicalKey }) { m -> MediaCard(m, false) { onPlay(m.canonicalKey, "demo_link_0") } }
+    }
+}
+
+@Composable
+private fun MediaCard(m: UnifiedMediaEntity, wide: Boolean, onClick: () -> Unit) {
+    Column(Modifier.width(if (wide) 220.dp else 136.dp).clip(RoundedCornerShape(16.dp)).background(FrostedGlassFill).border(1.dp, FrostedBorder, RoundedCornerShape(16.dp)).clickable(onClick = onClick)) {
+        AsyncImage(model = if (wide) (m.episodeStillUrl ?: m.backdropUrl ?: m.posterUrl) else m.posterUrl, contentDescription = m.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(if (wide) 124.dp else 190.dp).background(ObsidianSurface))
+        Column(Modifier.padding(10.dp)) {
+            Text(m.title, color = TextPrimary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(m.canonicalKey, color = AmberCorona, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}

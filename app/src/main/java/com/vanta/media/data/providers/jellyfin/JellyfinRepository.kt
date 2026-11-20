@@ -26,6 +26,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.PlayMethod
+import org.jellyfin.sdk.model.api.PlaybackOrder
 import org.jellyfin.sdk.model.api.PlaybackProgressInfo
 import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SortOrder
@@ -121,7 +122,8 @@ class JellyfinRepository @Inject constructor(
                     isMuted = false,
                     canSeek = true,
                     playMethod = PlayMethod.DIRECT_PLAY,
-                    repeatMode = RepeatMode.REPEAT_NONE
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT
                 )
             )
             Unit

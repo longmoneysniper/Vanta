@@ -171,7 +171,7 @@ class StremioAddonEngine @Inject constructor(
         }
     }
 
-    suspend fun queryStreamsInParallel(
+        suspend fun queryStreamsInParallel(
         canonicalKey: String,
         imdbId: String,
         isSeries: Boolean,
@@ -198,3 +198,23 @@ class StremioAddonEngine @Inject constructor(
                             MediaSourceLinkEntity(
                                 sourceLinkId = "addon_${addon.id}_${url.hashCode()}",
                                 canonicalKey = canonicalKey,
+                                sourceType = if (addon.isNuvio) MediaSourceType.NUVIO else MediaSourceType.STREMIO,
+                                serverId = addon.id,
+                                displayLabel = "${addon.name} • ${label.replace("\n", " ")}",
+                                streamUrl = url,
+                                customHeadersJson = json.encodeToString(headers)
+                            )
+                        )
+                        ResolvedAddonStream(addon.name, label, url, headers)
+                    }
+                }.getOrDefault(emptyList())
+            }
+        }.awaitAll().flatten()
+    }
+
+    private fun httpGet(url: String): String? = runCatching {
+        okHttpClient.newCall(Request.Builder().url(url).build()).execute().use { r ->
+            if (r.isSuccessful) r.body?.string() else null
+        }
+    }.getOrNull()
+}

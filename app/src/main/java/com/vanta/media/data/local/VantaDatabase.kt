@@ -5,11 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.vanta.media.data.local.dao.VantaMediaDao
-import com.vanta.media.data.local.entity.MediaSourceLinkEntity
-import com.vanta.media.data.local.entity.MediaSourceType
-import com.vanta.media.data.local.entity.MediaType
-import com.vanta.media.data.local.entity.TmdbLookupCacheEntity
-import com.vanta.media.data.local.entity.UnifiedMediaEntity
+import com.vanta.media.data.local.entity.*
 
 class VantaTypeConverters {
     @TypeConverter fun fromMediaType(value: MediaType): String = value.name
@@ -24,7 +20,7 @@ class VantaTypeConverters {
         MediaSourceLinkEntity::class,
         TmdbLookupCacheEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(VantaTypeConverters::class)

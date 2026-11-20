@@ -89,4 +89,3 @@ jobs:
         with:
           name: Vanta-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
-pk/debug/*.apk

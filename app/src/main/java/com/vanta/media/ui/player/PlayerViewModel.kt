@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vanta.media.data.local.dao.VantaMediaDao
 import com.vanta.media.data.local.entity.MediaSourceLinkEntity
+import com.vanta.media.data.local.entity.MediaType
 import com.vanta.media.data.local.entity.UnifiedMediaEntity
+import com.vanta.media.data.providers.stremio.StremioAddonEngine
 import com.vanta.media.player.companion.LanCompanionServer
 import com.vanta.media.player.engine.VantaMpvController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,7 +29,8 @@ data class PlayerScreenMetadata(
 class PlayerViewModel @Inject constructor(
     private val dao: VantaMediaDao,
     val mpvController: VantaMpvController,
-    private val companionServer: LanCompanionServer
+    private val companionServer: LanCompanionServer,
+    private val stremioEngine: StremioAddonEngine
 ) : ViewModel() {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -37,7 +40,20 @@ class PlayerViewModel @Inject constructor(
     fun loadFromRoom(canonicalKey: String, sourceLinkId: String) {
         viewModelScope.launch {
             val media = dao.getMediaByKey(canonicalKey)
-            val link = dao.getSourceLink(canonicalKey, sourceLinkId)
+            var link = dao.getSourceLink(canonicalKey, sourceLinkId)
+                ?: dao.getSourceLinksForMedia(canonicalKey).firstOrNull()
+
+            if (link == null && media?.imdbId != null) {
+                stremioEngine.queryStreamsInParallel(
+                    canonicalKey = canonicalKey,
+                    imdbId = media.imdbId,
+                    isSeries = media.mediaType == MediaType.EPISODE,
+                    season = media.seasonNumber,
+                    episode = media.episodeNumber
+                )
+                link = dao.getSourceLinksForMedia(canonicalKey).firstOrNull()
+            }
+
             val url = companionServer.start()
             val qr = companionServer.generateQrBitmap(url)
             _meta.value = PlayerScreenMetadata(media, link, url, qr)

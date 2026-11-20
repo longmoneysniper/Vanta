@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +37,7 @@ import com.vanta.media.navigation.VantaRoute
 import com.vanta.media.ui.components.AnamorphicEclipseLogo
 import com.vanta.media.ui.home.HomeViewModel
 import com.vanta.media.ui.player.VantaPlayerScreen
+import com.vanta.media.ui.settings.SettingsScreen
 import com.vanta.media.ui.sources.SourcesScreen
 import com.vanta.media.ui.theme.*
 
@@ -127,15 +131,21 @@ fun VantaAppShell() {
                 modifier = Modifier.fillMaxSize()
             ) {
                 composable<VantaRoute.Home> {
-                    Phase4HomeScreen(
+                    VantaHomeScreen(
                         onPlayMedia = { canonicalKey, linkId ->
                             navController.navigate(VantaRoute.Player(canonicalKey, linkId))
                         }
                     )
                 }
-                composable<VantaRoute.Library> { Phase4PlaceholderScreen("Unified Library") }
+                composable<VantaRoute.Library> {
+                    VantaLibraryGridScreen(
+                        onPlayMedia = { canonicalKey, linkId ->
+                            navController.navigate(VantaRoute.Player(canonicalKey, linkId))
+                        }
+                    )
+                }
                 composable<VantaRoute.Sources> { SourcesScreen() }
-                composable<VantaRoute.Settings> { Phase4PlaceholderScreen("Vanta Settings & PunchPlay.tv (Phase 5)") }
+                composable<VantaRoute.Settings> { SettingsScreen() }
                 composable<VantaRoute.Player> { backStackEntry ->
                     val args = backStackEntry.toRoute<VantaRoute.Player>()
                     VantaPlayerScreen(
@@ -150,7 +160,7 @@ fun VantaAppShell() {
 }
 
 @Composable
-private fun Phase4HomeScreen(
+private fun VantaHomeScreen(
     onPlayMedia: (String, String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -197,7 +207,7 @@ private fun Phase4HomeScreen(
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("PHASE 4 • JELLYFIN, STREMIO/NUVIO & DEBRID CONNECTED", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
+                Text("VANTA v1.0.0 • CINEMA, UNIFIED.", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = tmdbInput,
@@ -213,10 +223,3 @@ private fun Phase4HomeScreen(
                                 tmdbInput = ""
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)
-                    ) {
-                        Text("Save")
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { viewModel.ingestSampleItems() }) {

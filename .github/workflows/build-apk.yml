@@ -1,34 +1,64 @@
-name: Build Vanta APK
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-
-      - name: Build Installable APK
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload Vanta APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Vanta-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+      - name: Generate Clean XML Files
+        run: |
+          python3 -c '
+          import os
+          ns = "http://" + "://android.com"
+          tools = "http://" + "://android.com"
+          os.makedirs("app/src/main/res/mipmap-anydpi-v26", exist_ok=True)
+          open("app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", "w").write(f"""<?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="{ns}">
+              <background android:drawable="@android:color/black" />
+              <foreground android:drawable="@android:drawable/ic_media_play" />
+          </adaptive-icon>
+          """)
+          open("app/src/main/AndroidManifest.xml", "w").write(f"""<?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="{ns}" xmlns:tools="{tools}">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+              <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-feature android:name="android.software.leanback" android:required="false" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+              <application
+                  android:name=".VantaApplication"
+                  android:allowBackup="true"
+                  android:banner="@mipmap/ic_launcher"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="Vanta"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Material.NoActionBar"
+                  android:usesCleartextTraffic="true"
+                  tools:targetApi="35">
+                  <activity
+                      android:name=".MainActivity"
+                      android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:supportsPictureInPicture="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+                      </intent-filter>
+                  </activity>
+                  <service
+                      android:name=".player.service.VantaPlaybackService"
+                      android:exported="true"
+                      android:foregroundServiceType="mediaPlayback">
+                      <intent-filter>
+                          <action android:name="androidx.media3.session.MediaSessionService" />
+                      </intent-filter>
+                  </service>
+              </application>
+          </manifest>
+          """)
+          '

@@ -1,7 +1,16 @@
 package com.vanta.media
 
 import android.app.Application
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class VantaApplication : Application()
+class VantaApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(this))
+        }
+    }
+}

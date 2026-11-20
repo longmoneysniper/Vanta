@@ -16,8 +16,8 @@ android {
         applicationId = "com.vanta.media"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0-phase2"
+        versionCode = 3
+        versionName = "0.3.0-phase3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -53,6 +53,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 chaquopy {
@@ -80,7 +86,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Phase 2: Room, Encrypted Storage & Serialization
+    // Room, Encrypted Storage & Serialization
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
@@ -93,4 +99,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Phase 3: libmpv Engine, Media3 Session & LAN QR Generator
+    implementation("dev.jdtech.mpv:libmpv:0.4.0")
+    implementation(libs.androidx.media3.session)
+    implementation("com.google.zxing:core:3.5.3")
 }

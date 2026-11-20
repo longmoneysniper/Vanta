@@ -45,12 +45,19 @@ class MetadataResolver @Inject constructor(
             else -> "q:${p.cleanTitle.lowercase()}:${p.year ?: ""}:${if (isTv) "tv" else "movie"}"
         }
         mutexes.computeIfAbsent(key) { Mutex() }.withLock {
+            val apiKey = secureVault.getSecret("tmdb_api_key").orEmpty()
+            if (apiKey.isBlank()) {
+                val fb = fallback(p, s, e, hint.fallbackPosterUrl, hint.knownTmdbId, hint.knownImdbId)
+                dao.upsertMedia(fb)
+                return@withLock fb
+            }
+
             val cached = dao.getTmdbCache(key)
             if (cached != null && !cached.isExpired() && cached.isNegativeMatch) {
-                return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
+                val fb = fallback(p, s, e, hint.fallbackPosterUrl, hint.knownTmdbId, hint.knownImdbId)
+                dao.upsertMedia(fb)
+                return@withLock fb
             }
-            val apiKey = secureVault.getSecret("tmdb_api_key").orEmpty()
-            if (apiKey.isBlank()) return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
 
             val tmdbId = hint.knownTmdbId
                 ?: hint.knownImdbId?.let { bridgeImdb(it, isTv, apiKey) }
@@ -58,10 +65,12 @@ class MetadataResolver @Inject constructor(
 
             if (tmdbId == null) {
                 dao.upsertTmdbCache(TmdbLookupCacheEntity(key, null, if (isTv) MediaType.EPISODE else MediaType.MOVIE, null, System.currentTimeMillis(), true))
-                return@withLock fallback(p, s, e, hint.fallbackPosterUrl)
+                val fb = fallback(p, s, e, hint.fallbackPosterUrl, null, hint.knownImdbId)
+                dao.upsertMedia(fb)
+                return@withLock fb
             }
             val entity = (if (isTv && s != null && e != null) fetchEp(tmdbId, s, e, apiKey) else fetchMovie(tmdbId, apiKey))
-                ?: fallback(p, s, e, hint.fallbackPosterUrl)
+                ?: fallback(p, s, e, hint.fallbackPosterUrl, tmdbId, hint.knownImdbId)
             dao.upsertMedia(entity)
             dao.upsertTmdbCache(TmdbLookupCacheEntity(key, tmdbId, entity.mediaType, null, System.currentTimeMillis(), false))
             entity
@@ -124,14 +133,20 @@ class MetadataResolver @Inject constructor(
         null
     }
 
-    private fun fallback(p: ParsedFilename, s: Int?, e: Int?, poster: String?): UnifiedMediaEntity {
+    private fun fallback(p: ParsedFilename, s: Int?, e: Int?, poster: String?, tmdbId: Int?, imdbId: String?): UnifiedMediaEntity {
         val slug = p.cleanTitle.lowercase().replace(Regex("[^a-z0-9]+"), "-")
         val isTv = s != null && e != null
+        val key = when {
+            tmdbId != null && isTv -> "tv:$tmdbId:s${s.toString().padStart(2, '0')}:e${e.toString().padStart(2, '0')}"
+            tmdbId != null -> "movie:$tmdbId"
+            !imdbId.isNullOrBlank() -> "imdb:$imdbId"
+            isTv -> "unmatched:tv:$slug:s$s:e$e"
+            else -> "unmatched:movie:$slug"
+        }
         return UnifiedMediaEntity(
-            canonicalKey = if (isTv) "unmatched:tv:$slug:s$s:e$e" else "unmatched:movie:$slug",
-            tmdbId = null, imdbId = null, mediaType = if (isTv) MediaType.EPISODE else MediaType.MOVIE,
+            canonicalKey = key, tmdbId = tmdbId, imdbId = imdbId, mediaType = if (isTv) MediaType.EPISODE else MediaType.MOVIE,
             title = if (isTv) "${p.cleanTitle} • S${s}E${e}" else p.cleanTitle,
-            seriesTitle = if (isTv) p.cleanTitle else null, seriesGroupKey = if (isTv) "unmatched:tv:$slug" else null,
+            seriesTitle = if (isTv) p.cleanTitle else null, seriesGroupKey = if (isTv) "series:$slug" else null,
             seasonNumber = s, episodeNumber = e, posterUrl = poster, releaseYear = p.year
         )
     }

@@ -191,13 +191,6 @@ private fun CinemaLibraryScreen(isSearch: Boolean, vm: HomeViewModel = hiltViewM
             onLaunchPlayer(key, linkId)
         }
     }
-}
+    
 
-    selected?.let { m ->
-        MediaDetailsSheet(m, vm.dao, vm.stremioEngine, onDismiss = { selected = null }) { key, linkId ->
-            selected = null
-            onLaunchPlayer(key, linkId)
-        }
-    }
-}
 

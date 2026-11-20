@@ -34,6 +34,7 @@ import com.vanta.media.navigation.VantaRoute
 import com.vanta.media.ui.components.AnamorphicEclipseLogo
 import com.vanta.media.ui.home.HomeViewModel
 import com.vanta.media.ui.player.VantaPlayerScreen
+import com.vanta.media.ui.sources.SourcesScreen
 import com.vanta.media.ui.theme.*
 
 @Composable
@@ -126,15 +127,15 @@ fun VantaAppShell() {
                 modifier = Modifier.fillMaxSize()
             ) {
                 composable<VantaRoute.Home> {
-                    Phase3HomeScreen(
+                    Phase4HomeScreen(
                         onPlayMedia = { canonicalKey, linkId ->
                             navController.navigate(VantaRoute.Player(canonicalKey, linkId))
                         }
                     )
                 }
-                composable<VantaRoute.Library> { Phase3PlaceholderScreen("Unified Library") }
-                composable<VantaRoute.Sources> { Phase3PlaceholderScreen("Jellyfin • Stremio • Kodi • Debrid • SMB") }
-                composable<VantaRoute.Settings> { Phase3PlaceholderScreen("Vanta Settings & PunchPlay.tv") }
+                composable<VantaRoute.Library> { Phase4PlaceholderScreen("Unified Library") }
+                composable<VantaRoute.Sources> { SourcesScreen() }
+                composable<VantaRoute.Settings> { Phase4PlaceholderScreen("Vanta Settings & PunchPlay.tv (Phase 5)") }
                 composable<VantaRoute.Player> { backStackEntry ->
                     val args = backStackEntry.toRoute<VantaRoute.Player>()
                     VantaPlayerScreen(
@@ -149,7 +150,7 @@ fun VantaAppShell() {
 }
 
 @Composable
-private fun Phase3HomeScreen(
+private fun Phase4HomeScreen(
     onPlayMedia: (String, String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -196,7 +197,7 @@ private fun Phase3HomeScreen(
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("PHASE 3 • LIBMPV PLAYER, 24HZ LOCK & QR REMOTE READY", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
+                Text("PHASE 4 • JELLYFIN, STREMIO/NUVIO & DEBRID CONNECTED", color = AmberCorona, style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = tmdbInput,
@@ -211,7 +212,11 @@ private fun Phase3HomeScreen(
                                 viewModel.saveTmdbApiKey(tmdbInput)
                                 tmdbInput = ""
                             }
-                        }, 
-
-
-            
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AmberCorona, contentColor = OledObsidian)
+                    ) {
+                        Text("Save")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = { viewModel.ingestSampleItems() }) {

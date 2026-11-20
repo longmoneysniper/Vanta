@@ -218,8 +218,4 @@ private fun VantaHomeScreen(
                     )
                     Button(
                         onClick = {
-                            if (tmdbInput.isNotBlank()) {
-                                viewModel.saveTmdbApiKey(tmdbInput)
-                                tmdbInput = ""
-                            }
-                        },
+                            if (tmdbInput
